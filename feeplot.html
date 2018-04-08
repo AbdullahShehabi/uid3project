@@ -24,10 +24,12 @@
 
 <body>
 
-<div>
-  <button type="button" class="btn btn-primary" onclick="updateData('year')">Year</button>
-  <button type="button" class="btn btn-primary" onclick="updateData('month')">Month</button>
-  <button type="button" class="btn btn-primary" onclick="updateData('day')">Day</button>
+<div style="margin-top: 20px; margin-left: 20px;">
+  <button type="button" class="btn btn-primary" onclick="updateData('year')" style="padding-left: 10px">Year</button>
+  <button type="button" class="btn btn-primary" onclick="updateData('month')" style="padding-left: 10px">Month</button>
+  <button type="button" class="btn btn-primary" onclick="updateData('day')" style="padding-left: 10px">Day</button>
+
+  <button type="button" class="btn btn-warning" onclick="updateData('year')">Reset</button>
 </div>
 
 <nimo width="1350" height="620" style="padding-left: 20px"></nimo>
@@ -57,10 +59,6 @@
     return newData;
   };
 
-  const zoomed = function () {
-    container.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
-  }
-
   /**
    * Draw the graph based on a set of blockData
    * @param {Array} blockData - block fee data summary array of objects
@@ -74,7 +72,9 @@
       height = 540 - margin.top - margin.bottom;
 
     var zoom = d3.behavior.zoom()
-      .scaleExtent([1, 10])
+      .translate([0, 0])
+      .scale(1)
+      .scaleExtent([0.90, 100])
       .on("zoom", zoomed);
 
     var drag = d3.behavior.drag()
@@ -115,8 +115,9 @@
       .attr("height", height + margin.top + margin.bottom)
       .append("g")
       .attr("transform",
-        "translate(" + margin.left + "," + margin.top + ")")
-      .call(zoom);
+        "translate(" + margin.left + "," + margin.top + ")");
+
+    d3.select("nimo").select("svg").call(zoom);
 
     // Scale the range of the data
     x.domain(d3.extent(blockData, function (d) {
@@ -131,7 +132,7 @@
       .attr("class", "line")
       .attr("d", valueline(blockData));
 
-    // Add the scatterplot
+    // Add the points
     svg.selectAll("dot")
       .data(blockData)
       .enter().append("circle")
@@ -196,7 +197,51 @@
       .style("font-size", "20px")
       .style("font-family", "Times New Roman")
       .text("BTC Fees Paid per Block");
-  }
+
+    function zoomed() {
+      svg.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
+      console.log(d3.event.scale);
+
+      svg.selectAll("circle").remove();
+
+      svg.selectAll("dot")
+        .data(blockData)
+        .enter().append("circle")
+        .attr("r", 5/d3.event.scale)
+        .attr("cx", function (d) {
+          return x(d.endBlock);
+        })
+        .attr("cy", function (d) {
+          return y(d.fees);
+        })
+        .on("mouseover", function (d) {
+          div.transition()
+            .duration(200)
+            .style("opacity", .9);
+          div.html(d.endBlock + "<br/>" + d.fees)
+            .style("left", (d3.event.pageX) + "px")
+            .style("top", (d3.event.pageY - 28) + "px");
+        })
+        .on("mouseout", function (d) {
+          div.transition()
+            .duration(500)
+            .style("opacity", 0);
+        });
+    }
+
+    function dragstarted(d) {
+      d3.event.sourceEvent.stopPropagation();
+      d3.select(this).classed("dragging", true);
+    }
+
+    function dragged(d) {
+      d3.select(this).attr("cx", d.x = d3.event.x).attr("cy", d.y = d3.event.y);
+    }
+
+    function dragended(d) {
+      d3.select(this).classed("dragging", false);
+    }
+  };
 
   /**
    * Updates graph data after zoom or date period filter is applied
@@ -204,7 +249,7 @@
    */
   const updateData = function (period) {
     var resolution;
-    // numbers are based on the number of blocks during time period
+    // Numbers are based on the number of blocks during time period
     switch (period) {
       case 'year':
         resolution = 52560;
@@ -220,7 +265,7 @@
         break;
     }
 
-    // data is imported from data.js
+    // Data is imported from data.js
     const blockData = combineFees(resolution, data);
 
     // Remove dots
@@ -228,11 +273,10 @@
 
     // Make the changes
     drawGraph(blockData);
-  }
+  };
 
-  // Initialize blockData based on a 100k block summary
-  const blockData = updateData('year');
-  drawGraph(blockData);
+  // Initialize blockData based on a year block summary
+  updateData('year');
 
 </script>
 
