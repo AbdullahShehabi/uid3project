@@ -24,17 +24,21 @@
 
 <body>
 
-<button type="button" class="btn btn-primary" onclick="updateData('month')">Month</button>
+<div>
+  <button type="button" class="btn btn-primary" onclick="updateData('year')">Year</button>
+  <button type="button" class="btn btn-primary" onclick="updateData('month')">Month</button>
+  <button type="button" class="btn btn-primary" onclick="updateData('day')">Day</button>
+</div>
+
+<nimo width="1350" height="620" style="padding-left: 20px"></nimo>
 
 <script>
-
-  var dots;
 
   /**
    * Combines blocks into a smaller set of data point
    * @param {Number} numberOfBlocks - the number of blocks to combine per new data point
    */
-  var combineFees = function (numberOfBlocks, data) {
+  const combineFees = function (numberOfBlocks, data) {
     var newData = [];
     var tempObject = { startBlock: 1, blockIds: [] };
     var combinedFees = new BigNumber(0);
@@ -52,13 +56,153 @@
     }
     return newData;
   };
-  //  console.log(JSON.stringify(combineFees(1000, data), null, 2));
+
+  const zoomed = function () {
+    container.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
+  }
+
+  /**
+   * Draw the graph based on a set of blockData
+   * @param {Array} blockData - block fee data summary array of objects
+   */
+  const drawGraph = function (blockData) {
+    const dataKeyedByBlock = _.keyBy(blockData, 'block_hash');
+
+    // Set the dimensions of the canvas / graph
+    var margin = {top: 50, right: 30, bottom: 80, left: 80},
+      width = 1200 - margin.left - margin.right,
+      height = 540 - margin.top - margin.bottom;
+
+    var zoom = d3.behavior.zoom()
+      .scaleExtent([1, 10])
+      .on("zoom", zoomed);
+
+    var drag = d3.behavior.drag()
+      .origin(function(d) { return d; })
+      .on("dragstart", dragstarted)
+      .on("drag", dragged)
+      .on("dragend", dragended);
+
+    // Set the ranges
+    var x = d3.scale.linear().range([0, width]);
+    var y = d3.scale.linear().range([height, 0]);
+
+    // Define the axes
+    var xAxis = d3.svg.axis().scale(x)
+      .orient("bottom").ticks(5);
+
+    var yAxis = d3.svg.axis().scale(y)
+      .orient("left").ticks(5);
+
+    // Define the line
+    var valueline = d3.svg.line()
+      .x(function (d) {
+        return x(d.endBlock);
+      })
+      .y(function (d) {
+        return y(d.fees);
+      });
+
+    // Define the div for the tooltip
+    var div = d3.select("nimo").append("div")
+      .attr("class", "tooltip")
+      .style("opacity", 0);
+
+    // Adds the svg canvas
+    var svg = d3.select("nimo")
+      .append("svg")
+      .attr("width", width + margin.left + margin.right)
+      .attr("height", height + margin.top + margin.bottom)
+      .append("g")
+      .attr("transform",
+        "translate(" + margin.left + "," + margin.top + ")")
+      .call(zoom);
+
+    // Scale the range of the data
+    x.domain(d3.extent(blockData, function (d) {
+      return d.endBlock;
+    }));
+    y.domain([0, Number(d3.max(blockData, function (d) {
+      return Number(d.fees) * 1.2;
+    })).toFixed(2)]);
+
+    // Add the valueline path.
+    svg.append("path")
+      .attr("class", "line")
+      .attr("d", valueline(blockData));
+
+    // Add the scatterplot
+    svg.selectAll("dot")
+      .data(blockData)
+      .enter().append("circle")
+      .attr("r", 5)
+      .attr("cx", function (d) {
+        return x(d.endBlock);
+      })
+      .attr("cy", function (d) {
+        return y(d.fees);
+      })
+      .on("mouseover", function (d) {
+        div.transition()
+          .duration(200)
+          .style("opacity", .9);
+        div.html(d.endBlock + "<br/>" + d.fees)
+          .style("left", (d3.event.pageX) + "px")
+          .style("top", (d3.event.pageY - 28) + "px");
+      })
+      .on("mouseout", function (d) {
+        div.transition()
+          .duration(500)
+          .style("opacity", 0);
+      });
+
+    // Add the X Axis
+    svg.append("g")
+      .attr("class", "x axis")
+      .attr("transform", "translate(0," + height + ")")
+      .call(xAxis);
+
+    // X-Axis Label
+    svg.append("text")
+      .attr("transform",
+        "translate(" + (width/2) + " ," +
+        (height + margin.top + 20) + ")")
+      .style("text-anchor", "middle")
+      .style("font-size", "16px")
+      .style("font-family", "Times New Roman")
+      .text("Block Number");
+
+    // Add the Y Axis
+    svg.append("g")
+      .attr("class", "y axis")
+      .call(yAxis);
+
+    // Y-Axis Label
+    svg.append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", 0 - margin.left)
+      .attr("x",0 - (height / 2))
+      .attr("dy", "1em")
+      .style("font-size", "16px")
+      .style("text-anchor", "middle")
+      .style("font-family", "Times New Roman")
+      .text("Fees in BTC");
+
+    // Title
+    svg.append("text")
+      .attr("x", (width / 2))
+      .attr("y", 0 - (margin.top / 2))
+      .attr("text-anchor", "middle")
+      .style("font-size", "20px")
+      .style("font-family", "Times New Roman")
+      .text("BTC Fees Paid per Block");
+  }
 
   /**
    * Updates graph data after zoom or date period filter is applied
    * @param {String} period - change the resolution of the graph to this period type
    */
-  function updateData(period) {
+  const updateData = function (period) {
     var resolution;
     // numbers are based on the number of blocks during time period
     switch (period) {
@@ -76,126 +220,19 @@
         break;
     }
 
+    // data is imported from data.js
     const blockData = combineFees(resolution, data);
 
-    // Scale the range of the data again
-    x.domain(d3.extent(blockData, function(d) { return d.endBlock; }));
-    y.domain([0, Number(d3.max(blockData, function(d) { return Number(d.fees) * 1.2; })).toFixed(2)]);
-
-    // Select the section we want to apply our changes to
-    var svg = d3.select("svg").transition();
+    // Remove dots
+    d3.select("nimo").selectAll("*").remove();
 
     // Make the changes
-    svg.select(".line")   // change the line
-      .duration(750)
-      .attr("d", valueline(blockData));
-    svg.select(".x.axis") // change the x axis
-      .duration(750)
-      .call(xAxis);
-    svg.select(".y.axis") // change the y axis
-      .duration(750)
-      .call(yAxis);
-    svg.selectAll("dot")
-      .data(blockData)
-      .enter().append("circle")
-      .attr("r", 5)
-      .attr("cx", function(d) { return x(d.endBlock); })
-      .attr("cy", function(d) { return y(d.fees); })
-      .on("mouseover", function(d) {
-        div.transition()
-          .duration(200)
-          .style("opacity", .9);
-        div	.html(d.endBlock + "<br/>"  + d.fees)
-          .style("left", (d3.event.pageX) + "px")
-          .style("top", (d3.event.pageY - 28) + "px");
-      })
-      .on("mouseout", function(d) {
-        div.transition()
-          .duration(500)
-          .style("opacity", 0);
-      })
-      .duration(750);
+    drawGraph(blockData);
   }
 
-  const blockData = combineFees(100000, data);
-  const dataKeyedByBlock = _.keyBy(data, 'block_hash');
-//  console.log(JSON.stringify(blockData, null, 2));
-
-  // Set the dimensions of the canvas / graph
-  var margin = {top: 30, right: 20, bottom: 30, left: 50},
-    width = 600 - margin.left - margin.right,
-    height = 270 - margin.top - margin.bottom;
-
-  // Set the ranges
-  var x = d3.scale.linear().range([0, width]);
-  var y = d3.scale.linear().range([height, 0]);
-
-  // Define the axes
-  var xAxis = d3.svg.axis().scale(x)
-    .orient("bottom").ticks(5);
-
-  var yAxis = d3.svg.axis().scale(y)
-    .orient("left").ticks(5);
-
-  // Define the line
-  var valueline = d3.svg.line()
-    .x(function(d) { return x(d.endBlock); })
-    .y(function(d) { return y(d.fees); });
-
-  // Define the div for the tooltip
-  var div = d3.select("body").append("div")
-    .attr("class", "tooltip")
-    .style("opacity", 0);
-
-  // Adds the svg canvas
-  var svg = d3.select("body")
-    .append("svg")
-    .attr("width", width + margin.left + margin.right)
-    .attr("height", height + margin.top + margin.bottom)
-    .append("g")
-    .attr("transform",
-      "translate(" + margin.left + "," + margin.top + ")");
-
-  // Scale the range of the data
-  x.domain(d3.extent(blockData, function(d) { return d.endBlock; }));
-  y.domain([0, Number(d3.max(blockData, function(d) { return Number(d.fees) * 1.2; })).toFixed(2)]);
-
-  // Add the valueline path.
-  svg.append("path")
-    .attr("class", "line")
-    .attr("d", valueline(blockData));
-
-  // Add the scatterplot
-  dots = svg.selectAll("dot")
-    .data(blockData)
-    .enter().append("circle")
-    .attr("r", 5)
-    .attr("cx", function(d) { return x(d.endBlock); })
-    .attr("cy", function(d) { return y(d.fees); })
-    .on("mouseover", function(d) {
-      div.transition()
-        .duration(200)
-        .style("opacity", .9);
-      div	.html(d.endBlock + "<br/>"  + d.fees)
-        .style("left", (d3.event.pageX) + "px")
-        .style("top", (d3.event.pageY - 28) + "px");
-    })
-    .on("mouseout", function(d) {
-      div.transition()
-        .duration(500)
-        .style("opacity", 0);
-    });
-
-  // Add the X Axis
-  svg.append("g")
-    .attr("class", "x axis")
-    .attr("transform", "translate(0," + height + ")")
-    .call(xAxis);
-
-  // Add the Y Axis
-  svg.append("g")
-    .attr("class", "y axis")
-    .call(yAxis);
+  // Initialize blockData based on a 100k block summary
+  const blockData = updateData('year');
+  drawGraph(blockData);
 
 </script>
 
