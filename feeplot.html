@@ -1,8 +1,5 @@
 <!DOCTYPE html>
 <head>
-  <!-- Plotly.js -->
-  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
   <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
@@ -39,6 +36,19 @@
 
 <script>
 
+  /**
+   * Project Author:
+   * Abdullah Al-Shehabi
+   * San Jose State University CS 235 - Spring 2018
+   *
+   * Code referenced during project creation:
+   * - https://bl.ocks.org/mbostock/2b534b091d80a8de39219dd076b316cd
+   * - http://bl.ocks.org/d3noob/a22c42db65eb00d4e369
+   * - http://bl.ocks.org/d3noob/b3ff6ae1c120eea654b5
+   * - http://bl.ocks.org/d3noob/7030f35b72de721622b8
+   */
+
+  // Global variables for use
   var tableContent = '';
   var currentState = 'year';
 
@@ -346,10 +356,10 @@
     // Data is imported from data.js
     const blockData = combineFees(resolution, data);
 
-    // Remove dots
+    // Clear canvas of graph
     d3.select("nimo").selectAll("*").remove();
 
-    // Make the changes
+    // Draw graph
     drawGraph(blockData);
   };
 
