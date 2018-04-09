@@ -25,16 +25,22 @@
 <body>
 
 <div style="margin-top: 20px; margin-left: 20px;">
-  <button type="button" class="btn btn-primary" onclick="updateData('year')" style="padding-left: 10px">Year</button>
-  <button type="button" class="btn btn-primary" onclick="updateData('month')" style="padding-left: 10px">Month</button>
-  <button type="button" class="btn btn-primary" onclick="updateData('day')" style="padding-left: 10px">Day</button>
+  <button type="button" class="btn btn-primary" onclick="updateData('year')" style="padding-left: 10px">Yearly</button>
+  <button type="button" class="btn btn-primary" onclick="updateData('month')" style="padding-left: 10px">Monthly</button>
+  <button type="button" class="btn btn-primary" onclick="updateData('day')" style="padding-left: 10px">Daily</button>
+  <button type="button" class="btn btn-primary" onclick="updateData('hour')" style="padding-left: 10px">Hourly</button>
 
-  <button type="button" class="btn btn-warning" onclick="updateData('year')">Reset</button>
+  <button type="button" class="btn btn-warning" onclick="updateData(currentState)">Reset</button>
 </div>
 
 <nimo width="1350" height="620" style="padding-left: 20px"></nimo>
 
+<div id="block_data" style="margin-left: 20px;"></div>
+
 <script>
+
+  var tableContent = '';
+  var currentState = 'year';
 
   /**
    * Combines blocks into a smaller set of data point
@@ -42,18 +48,18 @@
    */
   const combineFees = function (numberOfBlocks, data) {
     var newData = [];
-    var tempObject = { startBlock: 1, blockIds: [] };
+    var tempObject = { startBlock: 1, blocks: [] };
     var combinedFees = new BigNumber(0);
 
     for (var blockNum = 1; blockNum < data.length; blockNum++) {
       const block = data[blockNum];
-//      tempObject.blockIds.push(block.block_hash);
+      tempObject.blocks.push(block);
       combinedFees = combinedFees.plus(block.fees || 0);
       if (blockNum % numberOfBlocks === 0) {
         tempObject.fees = combinedFees.div((new BigNumber(10)).exponentiatedBy(8)).toFixed(2);
         tempObject.endBlock = blockNum;
         newData.push(tempObject);
-        tempObject = { startBlock: blockNum + 1, blockIds: [] };
+        tempObject = { startBlock: blockNum + 1, blocks: [] };
       }
     }
     return newData;
@@ -64,8 +70,6 @@
    * @param {Array} blockData - block fee data summary array of objects
    */
   const drawGraph = function (blockData) {
-    const dataKeyedByBlock = _.keyBy(blockData, 'block_hash');
-
     // Set the dimensions of the canvas / graph
     var margin = {top: 50, right: 30, bottom: 80, left: 80},
       width = 1200 - margin.left - margin.right,
@@ -89,10 +93,10 @@
 
     // Define the axes
     var xAxis = d3.svg.axis().scale(x)
-      .orient("bottom").ticks(5);
+      .orient("bottom").ticks(10);
 
     var yAxis = d3.svg.axis().scale(y)
-      .orient("left").ticks(5);
+      .orient("left").ticks(10);
 
     // Define the line
     var valueline = d3.svg.line()
@@ -144,17 +148,30 @@
         return y(d.fees);
       })
       .on("mouseover", function (d) {
+        d3.select(this)
+          .transition()
+          .attr("r", 8)
+          .style("fill", "#F0F066");
+
         div.transition()
           .duration(200)
-          .style("opacity", .9);
-        div.html(d.endBlock + "<br/>" + d.fees)
-          .style("left", (d3.event.pageX) + "px")
-          .style("top", (d3.event.pageY - 28) + "px");
+          .style("opacity", .95);
+        div.html("From Block: " + d.startBlock + "<br>To: " + d.endBlock + "<br>Total Fees (BTC): " + d.fees +  "<br>" + "Click for more details")
+          .style("left", (d3.event.pageX) + 15 + "px")
+          .style("top", (d3.event.pageY - 100) + "px");
       })
       .on("mouseout", function (d) {
+        d3.select(this)
+          .transition()
+          .attr("r", 5)
+          .style("fill", "#000000");
+
         div.transition()
           .duration(500)
           .style("opacity", 0);
+      })
+      .on("click", function (d) {
+        displayBlockData(d);
       });
 
     // Add the X Axis
@@ -196,18 +213,18 @@
       .attr("text-anchor", "middle")
       .style("font-size", "20px")
       .style("font-family", "Times New Roman")
-      .text("BTC Fees Paid per Block");
+      .text("BTC Fees Paid vs Blocks");
 
     function zoomed() {
       svg.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
-      console.log(d3.event.scale);
 
       svg.selectAll("circle").remove();
 
+      var scale = d3.event.scale;
       svg.selectAll("dot")
         .data(blockData)
         .enter().append("circle")
-        .attr("r", 5/d3.event.scale)
+        .attr("r", 6/scale)
         .attr("cx", function (d) {
           return x(d.endBlock);
         })
@@ -215,17 +232,31 @@
           return y(d.fees);
         })
         .on("mouseover", function (d) {
+          d3.select(this)
+            .transition()
+            .attr("r", 9/scale)
+            .style("fill", "#F0F066");
+
           div.transition()
             .duration(200)
-            .style("opacity", .9);
-          div.html(d.endBlock + "<br/>" + d.fees)
+            .style("opacity", .95);
+
+          div.html("From Block: " + d.startBlock + "<br>To: " + d.endBlock + "<br>Total Fees (BTC): " + d.fees +  "<br>" + "Click point for more details")
             .style("left", (d3.event.pageX) + "px")
             .style("top", (d3.event.pageY - 28) + "px");
         })
         .on("mouseout", function (d) {
+          d3.select(this)
+            .transition()
+            .attr("r", 6/scale)
+            .style("fill", "#000000");
+
           div.transition()
             .duration(500)
             .style("opacity", 0);
+        })
+        .on("click", function (d) {
+          displayBlockData(d);
         });
     }
 
@@ -241,6 +272,48 @@
     function dragended(d) {
       d3.select(this).classed("dragging", false);
     }
+
+    function displayBlockData(d) {
+      tableContent = ""
+      var clearTableButton = "<div><button type='button' class='btn btn-sm btn-primary' onclick='clearTable()'>Clear Table</button></div>";
+
+      tableContent = "<div style='margin-right: 30%'><table class='table'>" +
+        "<thead>" +
+        "<tr>" +
+        "<th scope='col'>Block Height</th>" +
+        "<th scope='col'>Block Id</th>" +
+        "<th scope='col'>Fees (BTC)</th>" +
+        "</tr>" +
+        "</thead>" +
+        "<tbody>";
+
+      var rows = _.map(d.blocks, function (block) {
+        return "<tr>" +
+        "<td>" + block.block_height + "</td>" +
+        "<td>" + block.block_hash + "</td>" +
+        "<td>" + (new BigNumber(block.fees || 0)).div((new BigNumber(10)).exponentiatedBy(8)).toFixed(6) + "</td>" +
+        "</tr>";
+      });
+
+      tableContent += rows.join('') + "</tbody></table></div>";
+      document.getElementById("block_data").innerHTML = clearTableButton + tableContent;
+    }
+  };
+
+  /**
+   * Clears the table section of webpage
+   */
+  const clearTable = function () {
+    tableContent = document.getElementById("block_data").innerHTML;
+    var undoTableClearButton = "<div><button type='button' class='btn btn-sm btn-danger' onclick='undoTableClear()'>Undo Clear</button></div>";
+    document.getElementById("block_data").innerHTML = undoTableClearButton;
+  };
+
+  /**
+   * Undo table clear
+   */
+  const undoTableClear = function () {
+    document.getElementById("block_data").innerHTML = tableContent;
   };
 
   /**
@@ -250,6 +323,8 @@
   const updateData = function (period) {
     var resolution;
     // Numbers are based on the number of blocks during time period
+    currentState = period;
+
     switch (period) {
       case 'year':
         resolution = 52560;
@@ -259,6 +334,9 @@
         break;
       case 'day':
         resolution = 144;
+        break;
+      case 'hour':
+        resolution = 6;
         break;
       default:
         resolution = 100000;
@@ -274,6 +352,15 @@
     // Make the changes
     drawGraph(blockData);
   };
+
+  /**
+   * Ctrl+Z undos zoom and drag
+   */
+  $(document).keydown(function(e){
+    if( e.which === 90 && e.ctrlKey ){
+      updateData(currentState);
+    }
+  });
 
   // Initialize blockData based on a year block summary
   updateData('year');
