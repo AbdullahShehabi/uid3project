@@ -70,6 +70,7 @@
         tempObject.endBlock = blockNum;
         newData.push(tempObject);
         tempObject = { startBlock: blockNum + 1, blocks: [] };
+        combinedFees = new BigNumber(0);
       }
     }
     return newData;
